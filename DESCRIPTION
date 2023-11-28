@@ -1,7 +1,7 @@
 Package: wm
 Type: Package
 Title: Personal collection of useful functions
-Version: 0.1.0
+Version: 0.0.1
 Author: Weverthon Machado
 Maintainer: Weverthon Machado <xxx@weverthon.com>
 Description: More about what it does (maybe more than one line)
@@ -11,11 +11,7 @@ Encoding: UTF-8
 LazyData: true
 Imports: 
     lemon,
-    gtable,
-    grid,
     gridExtra,
     ggplot2,
-    gt,
-    modelsummary,
     cli
 RoxygenNote: 7.1.2

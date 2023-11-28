@@ -38,8 +38,10 @@
 #' # Create incremental plots
 #' p_steps  <- plot_reveal_steps(p_start, steps)
 #'
+#'\dontrun{
 #' # Save plots
 #' plot_reveal_save(p_steps, "myplot")
+#' }
 plot_reveal_start <- function(plot){
 
   gt <- ggplot2::ggplot_gtable(ggplot2::ggplot_build(plot))
@@ -88,8 +90,10 @@ plot_reveal_start <- function(plot){
 #' # Create incremental plots
 #' p_steps  <- plot_reveal_steps(p_start, steps)
 #'
+#'\dontrun{
 #' # Save plots
 #' plot_reveal_save(p_steps, "myplot")
+#' }
 plot_reveal_steps <- function(x, steps = NULL, layout = FALSE){
 
   previous_step <- character(0)
@@ -170,8 +174,10 @@ plot_reveal_steps <- function(x, steps = NULL, layout = FALSE){
 #' # Create incremental plots
 #' p_steps  <- plot_reveal_steps(p_start, steps)
 #'
+#'\dontrun{
 #' # Save plots
 #' plot_reveal_save(p_steps, "myplot")
+#' }
 plot_reveal_save <- function(plot_list, basename = "plot", ...) {
 
   cli::cli_h2("Saving incremental plots")

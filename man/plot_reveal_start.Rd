@@ -41,6 +41,8 @@ steps <- list(
 # Create incremental plots
 p_steps  <- plot_reveal_steps(p_start, steps)
 
+\dontrun{
 # Save plots
 plot_reveal_save(p_steps, "myplot")
+}
 }
