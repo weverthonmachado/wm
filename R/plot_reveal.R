@@ -110,7 +110,7 @@ plot_reveal_steps <- function(x, steps = NULL, layout = FALSE){
 
     # save current selection of elements to use in the next
     # step
-    previous_step <- step
+    previous_step <- c(previous_step, step)
 
 
     # Add to plot list
@@ -196,6 +196,111 @@ plot_reveal_save <- function(plot_list, basename = "plot", ...) {
 
 
 
+#' Reveal plots by facet
+#'
+#' Receives plot, creates steps by facet and returns objects ready for saving.
+#' Order of facet is rowise.
+#'
+#' @param p A ggplot2 plot
+#' @param labels If TRUE (default), the facet labels will also be revealed incrementally.
+#' Otherwise, labels are displayed in the first image.
+#' @export
+#' @examples
+#' # Create full plot
+#' library(ggplot2)
+#' data("mtcars")
+#'
+#' p <- mtcars |>
+#'   ggplot(aes(mpg, disp)) +
+#'    geom_point() +
+#'    facet_grid(vs~am) +
+#'    theme_light()
+#'
+#' # Create starting object
+#' p_steps <- plot_reveal_by_facet(p)
+#'
+#'\dontrun{
+#' # Save plots
+#' plot_reveal_save(p_steps, "myplot")
+#' }
+plot_reveal_by_facet <- function(x, labels = T){
+
+  p_start <- plot_reveal_start(x)
+
+  ordered_names <- p_start$layout$name[order(p_start$layout$name)]
+
+  panels <- ordered_names[grepl("panel", ordered_names)]
+  strips <- ordered_names[grepl("strip", ordered_names)]
+  rest <- ordered_names[!(ordered_names %in% c(panels, strips))]
+
+
+  # Handle facet titles (strips)
+  if (labels) {
+    # If there is more than one number, it's
+    # facet_wrap, otherwise it's facet_grid
+    if (stringr::str_count(strips[1], "\\d")>1){
+      # facet_wrap,
+      # each strip corresponds to
+      # a panel, so it is simple
+      strip_list <- as.list(strips)
+    } else {
+      # facet_grid
+      # strips might be at up to two of t, b, r, l
+      strip_letters <- unique(
+        unlist(
+          stringr::str_extract_all(strips,
+                          "(?<=strip-)\\w{1}")
+        )
+      ) |>
+        sort()
+
+      # now, for each panel, get corresponding strips
+      # some will be repeated, but that's fine
+      strip_list <- list()
+      for (i in 1:length(panels)){
+
+        strips_panel_i <- vector("character")
+
+        for (j in 1:length(strip_letters)){
+
+          strip_ij <- paste0("strip-",
+                             strip_letters[j],
+                             "-",
+                             unlist(stringr::str_extract_all(panels[i], "\\d"))[j])
+
+
+          strips_panel_i <- c(strips_panel_i, strip_ij)
+        }
+
+        strip_list <- append(strip_list, list(strips_panel_i))
+      }
+    }
+  } else {
+    strip_list <- as.list(rep("", length(panels)))
+    strip_list[[1]] <- strips
+  }
+
+
+  # First first panel + all axes, titles, etc
+  steps <- list(c(panels[1], strip_list[[1]], rest))
+
+  # Now, add each remaining panel,
+  # except for last, because this is accounted
+  # for the the full graph
+  # Not needed if there are opnly two panels
+  if (length(panels) > 2) {
+    for(i in 2:(length(panels)-1)){
+      steps <- append(steps, list(c(panels[i], strip_list[[i]])))
+    }
+  }
+
+  # Create incremental plots
+  p_steps  <- plot_reveal_steps(p_start, steps, T)
+
+  # Returns steps ready to be exported
+  return(p_steps)
+
+}
 
 
 

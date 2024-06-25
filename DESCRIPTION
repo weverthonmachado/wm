@@ -13,5 +13,6 @@ Imports:
     lemon,
     gridExtra,
     ggplot2,
+    stringr,
     cli
-RoxygenNote: 7.1.2
+RoxygenNote: 7.2.3
