@@ -4,13 +4,18 @@
 \alias{plot_reveal_by_facet}
 \title{Reveal plots by facet}
 \usage{
-plot_reveal_by_facet(x, labels = T)
+plot_reveal_by_facet(plot, labels = T, axis = T, add)
 }
 \arguments{
+\item{plot}{A ggplot2 plot}
+
 \item{labels}{If TRUE (default), the facet labels will also be revealed incrementally.
 Otherwise, labels are displayed in the first image.}
 
-\item{p}{A ggplot2 plot}
+\item{axis}{If TRUE (default), the axes will also be revealed incrementally.
+Otherwise, labels are displayed in the first image.}
+
+\item{add}{Optional: named vector to add specific elements}
 }
 \description{
 Receives plot, creates steps by facet and returns objects ready for saving.

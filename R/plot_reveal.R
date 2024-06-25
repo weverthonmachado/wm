@@ -195,15 +195,81 @@ plot_reveal_save <- function(plot_list, basename = "plot", ...) {
 }
 
 
+# Util function to properly
+# sort strips and axes
+#' @noRd
+util_sort_elements <- function(x, n_panels) {
+
+  letters <- unique(
+    unlist(
+      stringr::str_extract_all(x, "[t|b|l|r](?=-\\d)")
+    )
+  )
+
+  elements <- list()
+
+  for (i in letters) {
+
+    el <- x[stringr::str_detect(x,
+                                paste0("-", i, "-"))]
+
+    if (i %in% c("t", "b")){
+      # t and b axes/strips are sorted by
+      # second number, than first number
+      el_order <-
+        order(
+          as.numeric(
+            paste0(
+              # second number
+              stringr::str_extract(el, "\\d$"),
+              # first number
+              stringr::str_extract(el, "(?<=\\w-)\\d")
+            )
+          )
+        )
+    } else {
+
+      el_order <-
+        order(
+          as.numeric(
+            paste0(
+              # first number
+              stringr::str_extract(el, "(?<=\\w-)\\d"),
+              # second number
+              stringr::str_extract(el, "\\d$")
+
+            )
+          )
+        )
+
+    }
+
+    elements[[i]] <- el[el_order]
+  }
+
+  out <- list()
+  for (i in 1:n_panels) {
+    out[[i]] <- sapply(elements, `[[`, i)
+  }
+
+  return(out)
+}
+
 
 #' Reveal plots by facet
 #'
 #' Receives plot, creates steps by facet and returns objects ready for saving.
 #' Order of facet is rowise.
 #'
-#' @param p A ggplot2 plot
+#' @param plot A ggplot2 plot
 #' @param labels If TRUE (default), the facet labels will also be revealed incrementally.
 #' Otherwise, labels are displayed in the first image.
+#' @param axis If TRUE (default), the axes will also be revealed incrementally.
+#' Otherwise, labels are displayed in the first image.
+#' @param add Optional: named vector to add specific elements
+# to a given step. E.g. `c("2"="axis-b-2-2")` would add the element
+# "axis-b-2-2" to the second step. Useful for shared axes that need
+# to appear earlier than what is computed for each facet.
 #' @export
 #' @examples
 #' # Create full plot
@@ -223,29 +289,27 @@ plot_reveal_save <- function(plot_list, basename = "plot", ...) {
 #' # Save plots
 #' plot_reveal_save(p_steps, "myplot")
 #' }
-plot_reveal_by_facet <- function(x, labels = T){
+plot_reveal_by_facet <- function(plot, labels = T, axis = T, add){
 
-  p_start <- plot_reveal_start(x)
+  p_start <- plot_reveal_start(plot)
 
   ordered_names <- p_start$layout$name[order(p_start$layout$name)]
 
   panels <- ordered_names[grepl("panel", ordered_names)]
   strips <- ordered_names[grepl("strip", ordered_names)]
-  rest <- ordered_names[!(ordered_names %in% c(panels, strips))]
-
+  axes <- ordered_names[grepl("axis", ordered_names)]
+  rest <- ordered_names[!(ordered_names %in% c(panels, strips, axes))]
 
   # Handle facet titles (strips)
   if (labels) {
     # If there is more than one number, it's
     # facet_wrap, otherwise it's facet_grid
     if (stringr::str_count(strips[1], "\\d")>1){
-      # facet_wrap,
-      # each strip corresponds to
-      # a panel, so it is simple
-      strip_list <- as.list(strips)
+      # facet_wrap
+      strip_list <- util_sort_elements(strips , length(panels))
+
     } else {
       # facet_grid
-      # strips might be at up to two of t, b, r, l
       strip_letters <- unique(
         unlist(
           stringr::str_extract_all(strips,
@@ -281,16 +345,78 @@ plot_reveal_by_facet <- function(x, labels = T){
   }
 
 
+  # Handle axes
+  if (axis) {
+
+    # If there is more than one number, it's
+    # facet_wrap, otherwise it's facet_grid
+    if (stringr::str_count(axes[1], "\\d")>1){
+      # facet_wrap
+      axes_list <- util_sort_elements(axes, length(panels))
+
+    } else {
+      # facet_grid
+      axes_letters <- unique(
+        unlist(
+          stringr::str_extract_all(axes,
+                                   "(?<=axis-)\\w{1}")
+        )
+      ) |>
+        sort()
+
+      # now, for each panel, get corresponding axes
+      # some will be repeated, but that's fine
+      axes_list <- list()
+      for (i in 1:length(panels)){
+
+        axes_panel_i <- vector("character")
+
+        for (j in 1:length(axes_letters)){
+
+          # "l" and "r"are for rows in the grid
+          # index for row in panel name is 1, for col is 2
+          k <- ifelse(axes_letters[j] %in% c("l", "r"),
+                      1,
+                      2)
+
+          axis_ij <- paste0("axis-",
+                            axes_letters[j],
+                            "-",
+                            unlist(stringr::str_extract_all(panels[i], "\\d"))[k])
+
+
+          axes_panel_i <- c(axes_panel_i, axis_ij)
+        }
+
+        axes_list <- append(axes_list, list(axes_panel_i))
+      }
+    }
+  } else {
+    axes_list <- as.list(rep("", length(panels)))
+    axes_list[[1]] <- axes
+  }
+
+
+
   # First first panel + all axes, titles, etc
-  steps <- list(c(panels[1], strip_list[[1]], rest))
+  steps <- list(c(panels[1], strip_list[[1]], axes_list[[1]], rest))
 
   # Now, add each remaining panel,
   # except for last, because this is accounted
   # for the the full graph
-  # Not needed if there are opnly two panels
+  # Not needed if there are only two panels
   if (length(panels) > 2) {
     for(i in 2:(length(panels)-1)){
-      steps <- append(steps, list(c(panels[i], strip_list[[i]])))
+      steps <- append(steps, list(c(panels[i], strip_list[[i]], axes_list[[i]])))
+    }
+  }
+
+  # add custom elements
+  if (!missing(add)){
+    for (i in seq_along(add)) {
+      x <- steps[[as.numeric(names(add)[i])]]
+      steps[[as.numeric(names(add)[i])]] <- c(x,
+                                              add[i])
     }
   }
 
