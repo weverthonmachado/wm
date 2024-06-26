@@ -378,6 +378,130 @@ plot_reveal_by_facet <- function(plot, strip = T, axis = T, add, layout = T){
 
 
 
+#' Reveal plots by layer
+#'
+#' Receives plot, creates steps by facet and returns objects ready for saving.
+#' Order of facet is rowise.
+#'
+#' Current know limitations:
+#' scale ranges might differ depending on which layers are included
+#'
+#' @param plot A ggplot2 plot
+#' @export
+#' @examples
+#' # Create full plot
+#' library(ggplot2)
+#' data("iris")
+#'
+#' p <- iris |>
+#'   ggplot(aes(Sepal.Length, Sepal.Width,
+#'              group=Species,
+#'              color=Species)) +
+#'   geom_point() +
+#'   geom_line(stat="smooth",
+#'             method = "lm") +
+#'   theme_light()
+#'
+#' # Create starting object
+#' p_steps <- plot_reveal_by_layer(p)
+#'
+#'\dontrun{
+#' # Save plots
+#' plot_reveal_save(p_steps, "myplot")
+#' }
+plot_reveal_by_layer <- function(plot){
+
+  layer_list <- plot$layers
+
+  plot$layers <- list()
+
+  plot_list <- list(plot)
+
+  for (i in seq_along(layer_list)) {
+
+    plot$layers <- append(plot$layers, layer_list[i])
+    plot_list <- append(plot_list, list(plot))
+
+  }
+
+  return(plot_list)
+
+}
+
+
+#' Reveal plots by group
+#'
+#' Receives plot, creates steps by group and returns objects ready for saving.
+#' Order of facet is rowise.
+#'
+#' Current know limitations:
+#' does not work with geom_smooth;
+#' does not work with separate group aesthetics by layer
+#' does not work if there are separate alpha aesthetics by layer
+#' does not produce an empty first graph
+#'
+#' @param plot A ggplot2 plot
+#' @export
+#' @examples
+#' # Create full plot
+#' library(ggplot2)
+#' data("iris")
+#'
+#' p <- iris |>
+#'   ggplot(aes(Sepal.Length, Sepal.Width,
+#'              group=Species,
+#'              color=Species)) +
+#'   geom_point() +
+#'   geom_line(stat="smooth",
+#'             method = "lm") +
+#'   theme_light()
+#'
+#' # Create starting object
+#' p_steps <- plot_reveal_by_group(p)
+#'
+#'\dontrun{
+#' # Save plots
+#' plot_reveal_save(p_steps, "myplot")
+#' }
+plot_reveal_by_group <- function(plot){
+
+  group_var <- plot$mapping$group
+  group_values <- dplyr::pull(plot$data, !!group_var)
+  group_levels <- unique(sort(group_values))
+
+  plot_list <- list()
+
+  for (i in seq_along(group_levels)) {
+
+
+    if (is.null(plot$mapping$alpha)){
+      previous_alpha <- 0
+    } else {
+      previous_alpha <- plot$mapping$alpha
+    }
+
+    updated_alpha <- dplyr::if_else(group_values==group_levels[i],
+                             1,
+                             previous_alpha)
+
+    # if all visible, alpha should be null
+    if (sum(updated_alpha)==length(updated_alpha)){
+      updated_alpha <- NULL
+    }
+
+    plot$mapping$alpha <- updated_alpha
+
+    new_plot <- plot + ggplot2::scale_alpha(range = c(0,1), guide="none")
+
+    plot_list <- append(plot_list, list(new_plot))
+
+  }
+
+  return(plot_list)
+
+}
+
+
 
 
 
