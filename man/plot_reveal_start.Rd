@@ -4,10 +4,12 @@
 \alias{plot_reveal_start}
 \title{Create the plot layout object}
 \usage{
-plot_reveal_start(plot)
+plot_reveal_start(plot, layout = T)
 }
 \arguments{
 \item{plot}{A ggplot2 plot}
+
+\item{layout}{Whether to show the layout with names of elements}
 }
 \description{
 Given the full plot, this functions shows the layout of the plot with
