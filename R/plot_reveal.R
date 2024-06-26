@@ -246,7 +246,7 @@ select_sort_elements <- function(layout_obj, element="panel", type_facet = "wrap
                       dist_l = abs(panel_l-element_l),
                       dist_sum = dist_t+dist_l) |>
         dplyr::group_by(panel_name, element_letter) |>
-        dplyr::arrange(panel_name, element_letter, dist_sum) |>
+        dplyr::arrange(panel_t, panel_l, element_letter, dist_sum) |>
         dplyr::filter(dplyr::row_number()==1) |>
         dplyr::pull(element_name)
 
@@ -263,7 +263,7 @@ select_sort_elements <- function(layout_obj, element="panel", type_facet = "wrap
                       dist_l = abs(panel_l-element_l),
                       dist_sum = dist_t+dist_l) |>
         dplyr::group_by(panel_name) |>
-        dplyr::arrange(panel_name,dist_sum) |>
+        dplyr::arrange(panel_t, panel_l,dist_sum) |>
         dplyr::filter(dplyr::row_number() <= n_elements) |>
         dplyr::pull(element_name)
 
@@ -318,7 +318,7 @@ select_sort_elements <- function(layout_obj, element="panel", type_facet = "wrap
 #' }
 plot_reveal_by_facet <- function(plot, strip = T, axis = T, add, layout = T){
 
-  p_start <- plot_reveal_start(plot, layout =F )
+  p_start <- plot_reveal_start(plot, layout = layout)
   layout_obj <- p_start$layout
   type_facet <- stringr::str_extract(tolower(class(plot$facet)[1]), "grid|wrap")
 
