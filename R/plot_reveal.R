@@ -10,6 +10,7 @@
 #' `plot_reveal_steps()`
 #'
 #' @param plot A ggplot2 plot
+#' @param layout Whether to show the layout with names of elements
 #' @export
 #' @examples
 #' # Create full plot
@@ -42,10 +43,12 @@
 #' # Save plots
 #' plot_reveal_save(p_steps, "myplot")
 #' }
-plot_reveal_start <- function(plot){
+plot_reveal_start <- function(plot, layout = T){
 
   gt <- ggplot2::ggplot_gtable(ggplot2::ggplot_build(plot))
-  lemon::gtable_show_names(gt)
+  if (layout){
+    lemon::gtable_show_names(gt)
+  }
 
   gt
 }
@@ -195,64 +198,87 @@ plot_reveal_save <- function(plot_list, basename = "plot", ...) {
 }
 
 
-# Util function to properly
-# sort strips and axes
+# Util to select panels, strips and axes in in proper order
 #' @noRd
-util_sort_elements <- function(x, n_panels) {
+select_sort_elements <- function(layout_obj, element="panel", type_facet = "wrap") {
 
-  letters <- unique(
-    unlist(
-      stringr::str_extract_all(x, "[t|b|l|r](?=-\\d)")
-    )
-  )
+  panel_df <- layout_obj |>
+    dplyr::filter(stringr::str_detect(name, "panel")) |>
+    dplyr::rename_all(~paste0("panel_", .))
 
-  elements <- list()
+  if (element=="panel"){
 
-  for (i in letters) {
+    # Sort panels by row,  using t and l coordinates
+    # (To sort by col, just do by l then t)
+    out <- panel_df |>
+      dplyr::arrange(panel_t, panel_l) |>
+      dplyr::pull(panel_name)
 
-    el <- x[stringr::str_detect(x,
-                                paste0("-", i, "-"))]
 
-    if (i %in% c("t", "b")){
-      # t and b axes/strips are sorted by
-      # second number, than first number
-      el_order <-
-        order(
-          as.numeric(
-            paste0(
-              # second number
-              stringr::str_extract(el, "\\d$"),
-              # first number
-              stringr::str_extract(el, "(?<=\\w-)\\d")
-            )
-          )
-        )
-    } else {
+  } else if (element %in% c("axis", "strip")) {
 
-      el_order <-
-        order(
-          as.numeric(
-            paste0(
-              # first number
-              stringr::str_extract(el, "(?<=\\w-)\\d"),
-              # second number
-              stringr::str_extract(el, "\\d$")
 
-            )
-          )
-        )
+    element_df <- layout_obj |>
+      dplyr::filter(stringr::str_detect(name, element)) |>
+      dplyr::rename_all(~paste0("element_", .))
+
+
+    n_panels <- NROW(panel_df)
+
+
+    element_df_list <- list()
+    for (i in 1:n_panels) {
+      element_df_list <- append(element_df_list, list(element_df))
+    }
+
+
+    panel_element_df <- panel_df |>
+      dplyr::mutate(elements = element_df_list) |>
+      tidyr::unnest(cols = elements)
+
+
+    if (type_facet=="grid"){
+      # If plot uses facet_grid, get all axes/strips
+      # which have the t OR l coordinates for each panel
+      v <- panel_element_df |>
+        dplyr::mutate(element_letter = stringr::str_extract(element_name, "\\w(?=-\\d)")) |>
+        dplyr::mutate(dist_t = abs(panel_t-element_t),
+                      dist_l = abs(panel_l-element_l),
+                      dist_sum = dist_t+dist_l) |>
+        dplyr::group_by(panel_name, element_letter) |>
+        dplyr::arrange(panel_name, element_letter, dist_sum) |>
+        dplyr::filter(dplyr::row_number()==1) |>
+        dplyr::pull(element_name)
+
+
+    } else if (type_facet=="wrap"){
+      # If plot uses facet_wrap, get a number of all axes/strips
+      # which are closer to the panel considering the t and l coordinates
+
+      # How many to get per panel?
+      n_elements <- NROW(element_df)/n_panels
+
+      v <- panel_element_df |>
+        dplyr::mutate(dist_t = abs(panel_t-element_t),
+                      dist_l = abs(panel_l-element_l),
+                      dist_sum = dist_t+dist_l) |>
+        dplyr::group_by(panel_name) |>
+        dplyr::arrange(panel_name,dist_sum) |>
+        dplyr::filter(dplyr::row_number() <= n_elements) |>
+        dplyr::pull(element_name)
 
     }
 
-    elements[[i]] <- el[el_order]
+    out <- split(v, ceiling(seq_along(v) / (length(v)/n_panels)))
+
+
+  } else {
+    stop("element should be one of 'panel', 'axis' or 'strip'")
   }
 
-  out <- list()
-  for (i in 1:n_panels) {
-    out[[i]] <- sapply(elements, `[[`, i)
-  }
 
   return(out)
+
 }
 
 
@@ -262,7 +288,7 @@ util_sort_elements <- function(x, n_panels) {
 #' Order of facet is rowise.
 #'
 #' @param plot A ggplot2 plot
-#' @param labels If TRUE (default), the facet labels will also be revealed incrementally.
+#' @param strip If TRUE (default), the facet labels will also be revealed incrementally.
 #' Otherwise, labels are displayed in the first image.
 #' @param axis If TRUE (default), the axes will also be revealed incrementally.
 #' Otherwise, labels are displayed in the first image.
@@ -270,6 +296,7 @@ util_sort_elements <- function(x, n_panels) {
 # to a given step. E.g. `c("2"="axis-b-2-2")` would add the element
 # "axis-b-2-2" to the second step. Useful for shared axes that need
 # to appear earlier than what is computed for each facet.
+#' @param layout Whether to show the layout (with names of elements) for each step
 #' @export
 #' @examples
 #' # Create full plot
@@ -289,116 +316,36 @@ util_sort_elements <- function(x, n_panels) {
 #' # Save plots
 #' plot_reveal_save(p_steps, "myplot")
 #' }
-plot_reveal_by_facet <- function(plot, labels = T, axis = T, add){
+plot_reveal_by_facet <- function(plot, strip = T, axis = T, add, layout = T){
 
-  p_start <- plot_reveal_start(plot)
+  p_start <- plot_reveal_start(plot, layout =F )
+  layout_obj <- p_start$layout
+  type_facet <- stringr::str_extract(tolower(class(plot$facet)[1]), "grid|wrap")
 
-  ordered_names <- p_start$layout$name[order(p_start$layout$name)]
-
-  panels <- ordered_names[grepl("panel", ordered_names)]
-  strips <- ordered_names[grepl("strip", ordered_names)]
-  axes <- ordered_names[grepl("axis", ordered_names)]
-  rest <- ordered_names[!(ordered_names %in% c(panels, strips, axes))]
+  panels <- select_sort_elements(layout_obj, "panel")
+  strips <- select_sort_elements(layout_obj, "strip", type_facet)
+  axes <- select_sort_elements(layout_obj, "axis", type_facet)
+  rest <- layout_obj$name[!(stringr::str_detect(layout_obj$name, "panel|strip|axis"))]
 
   # Handle facet titles (strips)
-  if (labels) {
-    # If there is more than one number, it's
-    # facet_wrap, otherwise it's facet_grid
-    if (stringr::str_count(strips[1], "\\d")>1){
-      # facet_wrap
-      strip_list <- util_sort_elements(strips , length(panels))
-
-    } else {
-      # facet_grid
-      strip_letters <- unique(
-        unlist(
-          stringr::str_extract_all(strips,
-                          "(?<=strip-)\\w{1}")
-        )
-      ) |>
-        sort()
-
-      # now, for each panel, get corresponding strips
-      # some will be repeated, but that's fine
-      strip_list <- list()
-      for (i in 1:length(panels)){
-
-        strips_panel_i <- vector("character")
-
-        for (j in 1:length(strip_letters)){
-
-          strip_ij <- paste0("strip-",
-                             strip_letters[j],
-                             "-",
-                             unlist(stringr::str_extract_all(panels[i], "\\d"))[j])
-
-
-          strips_panel_i <- c(strips_panel_i, strip_ij)
-        }
-
-        strip_list <- append(strip_list, list(strips_panel_i))
-      }
-    }
+  if (strip) {
+    strip_list <- strips
   } else {
     strip_list <- as.list(rep("", length(panels)))
-    strip_list[[1]] <- strips
+    strip_list[[1]] <- unlist(strips)
   }
 
 
   # Handle axes
   if (axis) {
-
-    # If there is more than one number, it's
-    # facet_wrap, otherwise it's facet_grid
-    if (stringr::str_count(axes[1], "\\d")>1){
-      # facet_wrap
-      axes_list <- util_sort_elements(axes, length(panels))
-
-    } else {
-      # facet_grid
-      axes_letters <- unique(
-        unlist(
-          stringr::str_extract_all(axes,
-                                   "(?<=axis-)\\w{1}")
-        )
-      ) |>
-        sort()
-
-      # now, for each panel, get corresponding axes
-      # some will be repeated, but that's fine
-      axes_list <- list()
-      for (i in 1:length(panels)){
-
-        axes_panel_i <- vector("character")
-
-        for (j in 1:length(axes_letters)){
-
-          # "l" and "r"are for rows in the grid
-          # index for row in panel name is 1, for col is 2
-          k <- ifelse(axes_letters[j] %in% c("l", "r"),
-                      1,
-                      2)
-
-          axis_ij <- paste0("axis-",
-                            axes_letters[j],
-                            "-",
-                            unlist(stringr::str_extract_all(panels[i], "\\d"))[k])
-
-
-          axes_panel_i <- c(axes_panel_i, axis_ij)
-        }
-
-        axes_list <- append(axes_list, list(axes_panel_i))
-      }
-    }
+    axes_list <- axes
   } else {
     axes_list <- as.list(rep("", length(panels)))
-    axes_list[[1]] <- axes
+    axes_list[[1]] <- unlist(axes)
   }
 
 
-
-  # First first panel + all axes, titles, etc
+  # First first panel + corresponding axes/strips + rest
   steps <- list(c(panels[1], strip_list[[1]], axes_list[[1]], rest))
 
   # Now, add each remaining panel,
@@ -421,13 +368,12 @@ plot_reveal_by_facet <- function(plot, labels = T, axis = T, add){
   }
 
   # Create incremental plots
-  p_steps  <- plot_reveal_steps(p_start, steps, T)
+  p_steps  <- plot_reveal_steps(p_start, steps)
 
   # Returns steps ready to be exported
   return(p_steps)
 
 }
-
 
 
 

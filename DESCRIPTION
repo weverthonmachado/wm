@@ -13,5 +13,7 @@ Imports:
     gridExtra,
     ggplot2,
     stringr,
+    dplyr,
+    tidyr,
     cli
 RoxygenNote: 7.2.3
