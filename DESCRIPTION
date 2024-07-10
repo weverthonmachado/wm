@@ -1,7 +1,7 @@
 Package: wm
 Type: Package
 Title: Personal R package
-Version: 0.1.0
+Version: 0.1.1
 Author: Weverthon Machado
 Maintainer: Weverthon Machado <xxx@weverthon.com>
 Description: A collection of useful functions.
